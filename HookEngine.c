@@ -62,6 +62,7 @@ HookEngine_hook (
     ULONG_PTR function,
     ULONG_PTR hookFunction
 ) {
+    bb_queue_add (&engine->hookedFunctions, (void *) function);
     return engine->hook (function, hookFunction);
 }
 
