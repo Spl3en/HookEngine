@@ -27,6 +27,7 @@ HookEngine_new (
     }
 
     engine = this;
+    dbg ("HookEngine initialized correctly.");
 
     return this;
 }
@@ -48,9 +49,20 @@ HookEngine_init (
         return false;
     }
 
-    this->hook = (typeof(this->hook)) GetProcAddress (hEngine, "HookFunction");
-    this->unhook = (typeof(this->unhook)) GetProcAddress (hEngine, "UnhookFunction");
-    this->get_original_function = (typeof(this->get_original_function)) GetProcAddress (hEngine, "GetOriginalFunction");
+    if (!(this->hook = (typeof(this->hook)) GetProcAddress (hEngine, "HookFunction"))) {
+        dbg ("Cannot find HookFunction.");
+        return false;
+    }
+
+    if (!(this->unhook = (typeof(this->unhook)) GetProcAddress (hEngine, "UnhookFunction"))) {
+        dbg ("Cannot find UnhookFunction.");
+        return false;
+    }
+
+    if (!(this->get_original_function = (typeof(this->get_original_function)) GetProcAddress (hEngine, "GetOriginalFunction"))) {
+        dbg ("Cannot find GetOriginalFunction.");
+        return false;
+    }
 
     bb_queue_init (&this->hookedFunctions);
 
@@ -63,7 +75,12 @@ HookEngine_hook (
     ULONG_PTR hookFunction
 ) {
     bb_queue_add (&engine->hookedFunctions, (void *) function);
-    return engine->hook (function, hookFunction);
+    if (!engine->hook (function, hookFunction)) {
+        dbg ("Error when hooking function %p", function);
+        return false;
+    }
+
+    return true;
 }
 
 void
@@ -77,7 +94,14 @@ ULONG_PTR
 HookEngine_get_original_function (
     ULONG_PTR hookFunction
 ) {
-    return engine->get_original_function (hookFunction);
+    ULONG_PTR pFunc;
+
+    if (!(pFunc = engine->get_original_function (hookFunction))) {
+        dbg ("Cannot get original function of %p", hookFunction);
+        return 0;
+    }
+
+    return pFunc;
 }
 
 void
