@@ -11,26 +11,23 @@
 // ------ Structure declaration -------
 typedef struct _HookEngine
 {
-    BOOL (__cdecl *hook)(ULONG_PTR OriginalFunction, ULONG_PTR NewFunction);
-    VOID (__cdecl *unhook)(ULONG_PTR Function);
-    ULONG_PTR (__cdecl *get_original_function)(ULONG_PTR Hook);
-
+    BOOL (__cdecl *hook)(PVOID *ppSystemFunction, PVOID pHookFunction);
+    BOOL (__cdecl *unhook)(PVOID *ppHookedFunction);
+    PVOID (__cdecl *get_original_function)(PVOID *ppHookedFunction);
     BbQueue hookedFunctions;
-
 }   HookEngine;
-
-
 
 // --------- Allocators ---------
 
 /*
  * Description      : Allocate a new HookEngine structure.
- * char *enginePath : The path of the HookEngine
+ * char *engineName : The name of the HookEngine DLL
  * Return           : A pointer to an allocated HookEngine.
  */
 HookEngine *
 HookEngine_new (
-    char *enginePath
+    char *dllNameInjected,
+    char *engineName
 );
 
 // ----------- Functions ------------
@@ -39,31 +36,32 @@ HookEngine_new (
 /*
  * Description      : Initialize an allocated HookEngine structure.
  * HookEngine *this : An allocated HookEngine to initialize.
- * char *enginePath : The path of the HookEngine
+ * char *engineName : The name of the HookEngine DLL
  */
 bool
 HookEngine_init (
     HookEngine *this,
-    char *enginePath
+    char *dllNameInjected,
+    char *engineName
 );
 
 bool
 HookEngine_hook (
-    ULONG_PTR function,
-    ULONG_PTR hookFunction
+    PVOID *ppSystemFunction,
+    PVOID pHookFunction
 );
 
-void
+bool
 HookEngine_unhook (
-    ULONG_PTR originalFunction
+    PVOID *ppHookedFunction
 );
 
-ULONG_PTR
+PVOID *
 HookEngine_get_original_function (
-    ULONG_PTR hookFunction
+    PVOID pHookFunction
 );
 
-void
+bool
 HookEngine_unhook_all (
     void
 );

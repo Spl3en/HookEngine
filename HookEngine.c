@@ -2,26 +2,44 @@
 #include <stdlib.h>
 
 // ---------- Debugging -------------
-#define __DEBUG_OBJECT__ "HookEngine"
 #include "dbg/dbg.h"
-
 HookEngine *engine = NULL;
+
+static char *get_module_path(char *module)
+{
+    // Get current module path
+    char path[MAX_PATH] = { 0 };
+    if (GetModuleFileNameA(GetModuleHandleA(module), path, sizeof(path)) == 0) {
+        return NULL;
+    }
+
+    char * lastSlash = strrchr(path, '\\');
+    char * dllName = (lastSlash != NULL) ? &lastSlash[0] : path;
+    dllName[0] = '\0';
+
+    if (!strlen(path)) {
+        return NULL;
+    }
+
+    return strdup(path);
+}
 
 /*
  * Description      : Allocate a new HookEngine structure.
- * char *enginePath : The path of the HookEngine
+ * char *engineName : The path of the HookEngine
  * Return           : A pointer to an allocated HookEngine.
  */
 HookEngine *
 HookEngine_new (
-    char *enginePath
+    char *dllNameInjected,
+    char *engineName
 ) {
     HookEngine *this;
 
     if ((this = calloc (1, sizeof(HookEngine))) == NULL)
         return NULL;
 
-    if (!HookEngine_init (this, enginePath)) {
+    if (!HookEngine_init (this, dllNameInjected, engineName)) {
         HookEngine_free (this);
         return NULL;
     }
@@ -36,31 +54,42 @@ HookEngine_new (
 /*
  * Description      : Initialize an allocated HookEngine structure.
  * HookEngine *this : An allocated HookEngine to initialize.
- * char *enginePath : The path of the HookEngine
+ * char *engineName : The name of the HookEngine DLL
  */
 bool
 HookEngine_init (
     HookEngine *this,
-    char *enginePath
+    char *dllNameInjected,
+    char *engineName
 ) {
-    HMODULE hEngine = LoadLibrary (enginePath);
+    char fullEnginePath[MAX_PATH] = {0};
+    char *modulePath = get_module_path(dllNameInjected);
+    if (!modulePath) {
+        error ("Cannot find modulePath '%s'", dllNameInjected);
+        return false;
+    }
+    sprintf(fullEnginePath, "%s/%s", modulePath, engineName);
+
+    HMODULE hEngine = LoadLibrary (fullEnginePath);
     if (!hEngine) {
-        dbg ("Cannot load HookEngine <%s>", enginePath);
+        error ("Cannot load HookEngine <%s>", fullEnginePath);
         return false;
     }
 
+    info ("%s loaded into process.", fullEnginePath);
+
     if (!(this->hook = (typeof(this->hook)) GetProcAddress (hEngine, "HookFunction"))) {
-        dbg ("Cannot find HookFunction.");
+        error ("Cannot find 'HookFunction'.");
         return false;
     }
 
     if (!(this->unhook = (typeof(this->unhook)) GetProcAddress (hEngine, "UnhookFunction"))) {
-        dbg ("Cannot find UnhookFunction.");
+        error ("Cannot find 'UnhookFunction'.");
         return false;
     }
 
     if (!(this->get_original_function = (typeof(this->get_original_function)) GetProcAddress (hEngine, "GetOriginalFunction"))) {
-        dbg ("Cannot find GetOriginalFunction.");
+        error ("Cannot find GetOriginalFunction.");
         return false;
     }
 
@@ -71,47 +100,73 @@ HookEngine_init (
 
 bool
 HookEngine_hook (
-    ULONG_PTR function,
-    ULONG_PTR hookFunction
+    PVOID *ppSystemFunction,
+    PVOID pHookFunction
 ) {
-    bb_queue_add (&engine->hookedFunctions, (void *) function);
-    if (!engine->hook (function, hookFunction)) {
-        dbg ("Error when hooking function %p", function);
+    if (!engine) {
+        MessageBoxA(NULL, "Initialize HookEngine first.", "Error.", 0);
+        return false;
+    }
+
+    bb_queue_add (&engine->hookedFunctions, ppSystemFunction);
+
+    if (!engine->hook (ppSystemFunction, pHookFunction)) {
+        error ("Error when hooking function %p", ppSystemFunction);
         return false;
     }
 
     return true;
 }
 
-void
+bool
 HookEngine_unhook (
-    ULONG_PTR originalFunction
+    PVOID *ppHookedFunction
 ) {
-    engine->unhook (originalFunction);
+    if (!engine) {
+        MessageBoxA(NULL, "Initialize HookEngine first.", "Error.", 0);
+        return false;
+    }
+
+    return engine->unhook (ppHookedFunction);
 }
 
-ULONG_PTR
+PVOID *
 HookEngine_get_original_function (
-    ULONG_PTR hookFunction
+    PVOID pHookFunction
 ) {
-    ULONG_PTR pFunc;
+    PVOID **pFunc;
 
-    if (!(pFunc = engine->get_original_function (hookFunction))) {
-        dbg ("Cannot get original function of %p", hookFunction);
+    if (!engine) {
+        MessageBoxA(NULL, "Initialize HookEngine first.", "Error.", 0);
+        return NULL;
+    }
+
+    if (!(pFunc = engine->get_original_function (pHookFunction))) {
+        error ("Cannot get original function of %p", pHookFunction);
         return 0;
     }
 
-    return pFunc;
+    return *pFunc;
 }
 
-void
+bool
 HookEngine_unhook_all (
     void
 ) {
-    while (bb_queue_get_length (&engine->hookedFunctions)) {
-        ULONG_PTR originalFunction = (int) bb_queue_pop (&engine->hookedFunctions);
-        HookEngine_unhook (originalFunction);
+    if (!engine) {
+        MessageBoxA(NULL, "Initialize HookEngine first.", "Error.", 0);
+        return false;
     }
+
+    while (bb_queue_get_length (&engine->hookedFunctions)) {
+        void* originalFunction = bb_queue_pop (&engine->hookedFunctions);
+        if (!(HookEngine_unhook (originalFunction))) {
+            error ("Error when hooking function %p", originalFunction);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /*
