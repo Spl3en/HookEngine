@@ -159,7 +159,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="dbg\dbg.cpp" />
     <ClCompile Include="mhook-lib\mhook.cpp" />
     <ClCompile Include="disasm-lib\cpu.c" />
     <ClCompile Include="disasm-lib\disasm.c" />
@@ -167,7 +166,6 @@
     <ClCompile Include="disasm-lib\misc.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dbg\dbg.h" />
     <ClInclude Include="mhook-lib\mhook.h" />
     <ClInclude Include="disasm-lib\cpu.h" />
     <ClInclude Include="disasm-lib\disasm.h" />

@@ -1,0 +1,7 @@
+*.exp
+*.ilk
+*.lib
+*.pdb
+src/Win32
+*.sdf
+*.opensdf
